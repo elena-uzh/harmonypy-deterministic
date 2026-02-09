@@ -15,9 +15,24 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import os
+
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
+
 import pandas as pd
 import numpy as np
 import torch
+torch.set_num_threads(1)
+torch.set_num_interop_threads(1)
+
+try:
+    torch.use_deterministic_algorithms(True)
+except Exception:
+    pass
+
 from sklearn.cluster import KMeans
 import logging
 
