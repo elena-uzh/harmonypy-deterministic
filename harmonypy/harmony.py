@@ -25,25 +25,27 @@ import logging
 
 @contextmanager
 def _deterministic_threads(enabled: bool):
+    """
+    Context manager to make Harmony deterministic on CPU.
+    - Only affects intra-op threads and BLAS threads.
+    - Does NOT change inter-op threads to avoid RuntimeError.
+    """
     if not enabled:
         yield
         return
 
-    # Save current PyTorch thread settings
-    prev_torch = torch.get_num_threads()
-    prev_interop = torch.get_num_interop_threads()
+    # Save current PyTorch thread setting
+    prev_torch_threads = torch.get_num_threads()
 
     try:
-        # Limit BLAS threads
+        # Limit BLAS threads (NumPy, SciPy, OpenBLAS, MKL, etc)
         with threadpool_limits(limits=1):
-            # Limit PyTorch threads
+            # Limit PyTorch intra-op threads (inside individual ops)
             torch.set_num_threads(1)
-            torch.set_num_interop_threads(1)
             yield
     finally:
         # Restore PyTorch threads
-        torch.set_num_threads(prev_torch)
-        torch.set_num_interop_threads(prev_interop)
+        torch.set_num_threads(prev_torch_threads)
 
 
 # create logger
@@ -133,7 +135,8 @@ def run_harmony(
         Random seed for reproducibility. Default is 0.
     device : str, optional
         Device to use ('cpu', 'cuda', 'mps'). Default is auto-detect.
-        
+    deterministic : bool, optional
+        “This only limits Harmony internals to one thread". Default is False. Setting to True may improve reproducibility at the cost of speed.
     Returns
     -------
     Harmony
