@@ -63,7 +63,8 @@ def run_harmony(
     alpha=0.2,
     verbose=True,
     random_state=0,
-    device=None
+    device=None,
+    deterministic = False
 ):
     """Run Harmony batch effect correction.
     
@@ -209,7 +210,7 @@ def run_harmony(
         theta, lamb, alpha, lambda_estimation,
         max_iter_harmony, max_iter_kmeans,
         epsilon_cluster, epsilon_harmony, nclust, block_size, verbose,
-        random_state, device_obj
+        random_state, device_obj, deterministic
     )
 
     return ho
@@ -225,9 +226,10 @@ class Harmony:
             self, Z, Phi, Pr_b, sigma, theta, lamb, alpha, lambda_estimation,
             max_iter_harmony, max_iter_kmeans, 
             epsilon_kmeans, epsilon_harmony, K, block_size, verbose,
-            random_state, device
+            random_state, device, deterministic = False
     ):
         self.device = device
+        self.deterministic = deterministic
         
         # Convert to PyTorch tensors on device
         # Store with underscore prefix internally, expose as properties returning NumPy arrays
@@ -467,8 +469,12 @@ class Harmony:
         self._scale_dist = torch.exp(self._scale_dist)
         self._scale_dist = self._scale_dist / self._scale_dist.sum(dim=0)
         
-        # Create shuffled update order
-        update_order = torch.randperm(self.N, device=self.device)
+        if self.deterministic:
+            # In deterministic mode, do not shuffle the update order
+            update_order = torch.arange(self.N, device=self.device)
+        else:
+            # Create shuffled update order
+            update_order = torch.randperm(self.N, device=self.device)
         
         # Process in blocks
         n_blocks = int(np.ceil(1.0 / self.block_size))
