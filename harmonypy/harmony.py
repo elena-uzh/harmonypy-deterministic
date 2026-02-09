@@ -385,7 +385,7 @@ class Harmony:
         # KMeans needs CPU numpy array
         Z_cos_np = self._Z_cos.cpu().numpy()
         model = KMeans(n_clusters=self.K, init='k-means++',
-                       n_init=1, max_iter=25, random_state=random_state)
+                       n_init=1, max_iter=25, random_state=random_state, algorithm='lloyd')
         model.fit(Z_cos_np.T)
         self._Y = torch.tensor(model.cluster_centers_.T, dtype=torch.float32, device=self.device)
         logger.info("KMeans initialization complete.")
