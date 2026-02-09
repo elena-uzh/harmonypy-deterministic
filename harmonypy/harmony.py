@@ -15,26 +15,36 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import os
-
-os.environ.setdefault("OMP_NUM_THREADS", "1")
-os.environ.setdefault("MKL_NUM_THREADS", "1")
-os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
-os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
-
 import pandas as pd
 import numpy as np
 import torch
-torch.set_num_threads(1)
-torch.set_num_interop_threads(1)
-
-try:
-    torch.use_deterministic_algorithms(True)
-except Exception:
-    pass
-
+from contextlib import contextmanager
+from threadpoolctl import threadpool_limits
 from sklearn.cluster import KMeans
 import logging
+
+@contextmanager
+def _deterministic_threads(enabled: bool):
+    if not enabled:
+        yield
+        return
+
+    # Save current PyTorch thread settings
+    prev_torch = torch.get_num_threads()
+    prev_interop = torch.get_num_interop_threads()
+
+    try:
+        # Limit BLAS threads
+        with threadpool_limits(limits=1):
+            # Limit PyTorch threads
+            torch.set_num_threads(1)
+            torch.set_num_interop_threads(1)
+            yield
+    finally:
+        # Restore PyTorch threads
+        torch.set_num_threads(prev_torch)
+        torch.set_num_interop_threads(prev_interop)
+
 
 # create logger
 logger = logging.getLogger('harmonypy')
@@ -219,14 +229,15 @@ def run_harmony(
     if hasattr(data_mat, 'values'):
         data_mat = data_mat.values
     data_mat = np.asarray(data_mat, dtype=np.float32)
-    
-    ho = Harmony(
-        data_mat, phi, Pr_b, sigma.astype(np.float32), 
-        theta, lamb, alpha, lambda_estimation,
-        max_iter_harmony, max_iter_kmeans,
-        epsilon_cluster, epsilon_harmony, nclust, block_size, verbose,
-        random_state, device_obj, deterministic
-    )
+
+    with _deterministic_threads(deterministic):
+        ho = Harmony(
+            data_mat, phi, Pr_b, sigma.astype(np.float32), 
+            theta, lamb, alpha, lambda_estimation,
+            max_iter_harmony, max_iter_kmeans,
+            epsilon_cluster, epsilon_harmony, nclust, block_size, verbose,
+            random_state, device_obj, deterministic
+        )
 
     return ho
 
